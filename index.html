@@ -570,6 +570,40 @@ function startW2(k){
   }
   g.spawnTimer=.3;
 }
+// ---- 무한 모드 (1인큐): 5초마다 일진/특수일진이 몰려오고, 30초마다 더 강해진다. 오래 버티는 게임.
+const INF_S0=30,INF_CAP=100;
+const infLv=()=>g.inf?Math.floor(g.inf.t/30):0;
+const infCount=lv=>5+lv;                    // 5초마다 나오는 수: 5마리에서 시작, 30초마다 +1
+const infStage=lv=>INF_S0+2*lv;             // 적 강도: 스테이지 30 기준, 30초마다 +2스테이지 급
+const fmtT=t=>Math.floor(t/60)+'분 '+String(Math.floor(t%60)).padStart(2,'0')+'초';
+function startInf(co){
+  resetCommon();g.mode='STAGE';g.mine=false;g.alt='inf';g.curStage=INF_S0;g.ending=false;
+  g.inf={t:0,spawnT:1.5,done:false,newBest:false,lastLv:0,co:!!co,sentEnd:false};if(!co)NET.partner=null;NET.q=co?'in':null;g.queue=[];g.spawnTimer=99;
+}
+function infSpawn(){
+  const lv=infLv(),s=infStage(lv),n=infCount(lv);g.curStage=s;
+  for(let i=0;i<n;i++){
+    if(g.enemies.length>=INF_CAP)break;
+    spawnEnemy(Math.random()<.25?makeSpecial(s,SPECIALS[rnd(SPECIALS.length)]):makeEnemy(s,false));
+  }
+}
+function infUpdate(dt){
+  const I=g.inf;if(!I||I.done)return;
+  I.t+=dt;I.spawnT-=dt;
+  const lv=infLv();if(lv>I.lastLv){I.lastLv=lv;ftext(g.px,g.py-100,'일진들이 더 강해졌다! Lv.'+lv,'#ff7070',22);}
+  if(I.spawnT<=0){I.spawnT+=5;infSpawn();}
+}
+function infEnd(){
+  const I=g.inf;if(!I||I.done)return;I.done=true;
+  const best=P.infBest||0;if(I.t>best){P.infBest=I.t;I.newBest=true;}
+  I.coins=Math.floor(I.t)*3;P.coins+=I.coins;checkTitles();
+  if(I.co&&NET.on&&NET.ws&&NET.ws.readyState===1){try{NET.ws.send(JSON.stringify({t:'rend',tm:I.t}));}catch(e){}I.sentEnd=true;}
+}
+function infTeamT(){const I=g.inf,pt=NET.partner;return Math.max(I.t,pt?pt.tm||0:0);}
+function infFinish(){   // 나갈 때: 2인큐는 두 사람 중 오래 버틴 시간이 팀 기록
+  const I=g.inf;if(!I||!I.co||I.teamSaved)return;I.teamSaved=true;
+  const tt=infTeamT();if(tt>(P.infBest2||0)){P.infBest2=tt;I.newTeam=true;}
+}
 function w2Clear(luck){
   const k=g.w2k,boss=k%5===0,mid=k%3===0;
   g.clearCoins=600+90*k+(boss?1500:0);P.coins+=g.clearCoins;
@@ -1018,7 +1052,7 @@ function hurtPlayer(raw,fixed){
   let dmg=fixed?raw:Math.max(1,Math.round(raw*100/(100+pDef()*4)));
   if(g.shield>0){const a=Math.min(g.shield,dmg);g.shield-=a;dmg-=a;if(dmg<=0){g.invuln=.4;ftext(g.px,g.py-40,'보호막','#8cf',16);return;}}
   P.hp-=dmg;g.invuln=.4;g.lastCombat=g.clock;ftext(g.px,g.py-40,'-'+dmg,'#ff5050',18);
-  if(P.hp<=0){P.hp=0;g.deathFrom=g.mode;g.mode='DEAD';}
+  if(P.hp<=0){P.hp=0;g.deathFrom=g.mode;g.mode='DEAD';if(g.alt==='inf')infEnd();}
 }
 function updateEnemies(dt){
   for(const e of g.enemies){
@@ -1142,7 +1176,8 @@ function updateGame(dt){
   if(g.mode==='STAGE'){
     if(g.queue.length&&g.waves&&g.waves.length){g.spawnTimer-=dt;if(g.spawnTimer<=0){const k=g.waves.shift();for(let i=0;i<k&&g.queue.length;i++)spawnEnemy(g.queue.shift());g.spawnTimer=15;}}   // 던전 5단계: 15초 간격으로 한 무리씩
     else if(g.queue.length){g.spawnTimer-=dt;if(g.spawnTimer<=0){spawnEnemy(g.queue.shift());g.spawnTimer=Math.max(.5,1.4-g.curStage*.05);}}
-    if(!g.queue.length&&!g.enemies.length)onClear();
+    if(g.alt==='inf')infUpdate(dt);
+    else if(!g.queue.length&&!g.enemies.length)onClear();
   }else if(g.mode==='VILLAGE'){
     updateVillage(dt);
   }else if(g.mode==='TUTORIAL'){
@@ -1196,8 +1231,8 @@ function onClear0(){
   if(prev<5&&maxCleared>=5)g.dropLines.unshift({s:'★ 광산이 해금되었다! (마을 왼쪽 아래 광산에서 입장)',c:'#78ffff'});
 }
 function leaveClear(){goVillage(g.ending?'축하합니다! 스트리트 파이터가 되었습니다! 계속 도전할 수 있어요.':g.alt==='raid'?'던전 '+g.dun+'단계 클리어!'+(g.dun===5?' 월드보스를 쓰러뜨렸다!':''):g.alt==='w2'?'2세계 '+g.w2k+'스테이지 클리어!':g.alt==='tower'?'마탑 '+g.floor+'층 클리어!':g.mine?'광산 '+g.mineFloor+'층 클리어! 재료를 챙겼다.':'스테이지 '+g.curStage+' 클리어! 정비하고 다음 스테이지로!',V.last);}
-function leaveDead(){const vil=g.deathFrom==='VILLAGE',loss=Math.floor(P.coins/(vil?10:5));P.coins-=loss;P.hp=maxHp();goVillage((vil?'일진들에게 맞고 쓰러졌다... ':'쓰러졌다... ')+'코인 '+loss+' 손실. 장비를 정비하고 다시 도전하자!',vil?null:V.last);}
-function exitStage(){goVillage(g.alt==='raid'?'던전에서 나왔습니다.':g.alt==='w2'?'2세계에서 나왔습니다.':g.alt==='tower'?'마탑에서 나왔습니다.':g.mine?'광산에서 나왔습니다.':'스테이지에서 나왔습니다.',V.last);}
+function leaveDead(){if(g.alt==='inf'){P.hp=maxHp();infFinish();goVillage('무한 모드 종료! 생존 '+fmtT(g.inf.t)+(g.inf.newBest?' (신기록!)':'')+(g.inf.co?' · 팀 기록 '+fmtT(infTeamT())+(g.inf.newTeam?' (팀 신기록!)':''):'')+' · 코인 +'+g.inf.coins,V.last);return;}const vil=g.deathFrom==='VILLAGE',loss=Math.floor(P.coins/(vil?10:5));P.coins-=loss;P.hp=maxHp();goVillage((vil?'일진들에게 맞고 쓰러졌다... ':'쓰러졌다... ')+'코인 '+loss+' 손실. 장비를 정비하고 다시 도전하자!',vil?null:V.last);}
+function exitStage(){if(g.alt==='inf'){infEnd();infFinish();goVillage('무한 모드 종료! 생존 '+fmtT(g.inf.t)+(g.inf.newBest?' (신기록!)':'')+(g.inf.co?' · 팀 기록 '+fmtT(infTeamT())+(g.inf.newTeam?' (팀 신기록!)':''):'')+' · 코인 +'+g.inf.coins,V.last);return;}goVillage(g.alt==='raid'?'던전에서 나왔습니다.':g.alt==='w2'?'2세계에서 나왔습니다.':g.alt==='tower'?'마탑에서 나왔습니다.':g.mine?'광산에서 나왔습니다.':'스테이지에서 나왔습니다.',V.last);}
 function endTutorial(){saveOk=true;goVillage('튜토리얼 완료! 마을에서 상점·대장간·광산·도박장·스테이지를 이용해 보세요.','train');}
 function usePotionKey(i){
   if(g.mode!=='STAGE'&&g.mode!=='TUTORIAL'&&g.mode!=='VILLAGE')return;
@@ -1449,7 +1484,7 @@ function drawHud(){
   {let hx=20+ctx.measureText(P.name+'  Lv.'+P.level).width+10;if(P.titleEq)hx+=titleBadge(P.titleEq,hx,26,16)+8;txt('['+pTitle()+']',hx,26,18,'#fff');}
   bar(20,36,320,20,P.hp/maxHp(),'#dc3c46');txt('HP '+P.hp+' / '+maxHp(),28,51,13,'#fff');
   bar(20,64,320,10,P.xp/xpNeed(),'#468cff');txt('XP '+P.xp+'/'+xpNeed(),346,73,11,'#fff',false);
-  txt(g.mode==='TUTORIAL'?'TUTORIAL':g.mine?'광산 '+g.mineFloor+'층':g.alt==='raid'?'던전 '+g.dun+'단계'+(g.dun===5?' (월드보스)':''):g.alt==='w2'?'2세계 '+g.w2k+'스테이지'+(g.w2k%5===0?' (BOSS)':g.w2k%3===0?' (중간보스)':''):g.alt==='tower'?'마탑 '+g.floor+'층':'STAGE '+g.curStage+(g.curStage%5===0?'  (BOSS)':''),430,34,24,'#ffd75a');
+  txt(g.mode==='TUTORIAL'?'TUTORIAL':g.mine?'광산 '+g.mineFloor+'층':g.alt==='raid'?'던전 '+g.dun+'단계'+(g.dun===5?' (월드보스)':''):g.alt==='w2'?'2세계 '+g.w2k+'스테이지'+(g.w2k%5===0?' (BOSS)':g.w2k%3===0?' (중간보스)':''):g.alt==='inf'?(g.inf.co?'2인큐  ':'무한 모드  ')+fmtT(g.inf.t)+'  (Lv.'+infLv()+')':g.alt==='tower'?'마탑 '+g.floor+'층':'STAGE '+g.curStage+(g.curStage%5===0?'  (BOSS)':''),430,34,24,'#ffd75a');
   txt('남은 적: '+(g.enemies.length+g.queue.length)+'   공격력 '+pAtk()+'  방어력 '+pDef(),430,58,14,'#fff',false);
   if(g.regenActive)txt('♥ 자동회복 중 (0.7초마다 +1)',430,78,14,'#6eff8c',false);
   txt('코인 '+P.coins,740,26,18,'#ffd75a');
@@ -1501,6 +1536,8 @@ function drawClear(){
 }
 function drawDead(){
   overlayBox('쓰러졌다...','#e65050');
+  if(g.alt==='inf'&&g.inf){txt('생존 시간  '+fmtT(g.inf.t),300,215,26,'#ffd75a');txt((g.inf.newBest?'★ 신기록! ':'')+'최고 기록  '+fmtT(P.infBest||0)+'  ·  코인 +'+g.inf.coins,290,255,18,g.inf.newBest?'#78ffb4':'#fff');
+    if(g.inf.co&&NET.partner){const pt=NET.partner;txt(pt.n+': '+(pt.dead||pt.left?(pt.left&&!pt.ended?'연결 종료 ':'쓰러짐 ')+fmtT(pt.tm||0):'버티는 중… '+fmtT(pt.tm||0)),300,300,18,'#9fe8ff');txt('팀 기록(둘 중 오래 버틴 시간)  '+fmtT(infTeamT())+'  ·  팀 최고 '+fmtT(Math.max(P.infBest2||0,infTeamT())),240,335,18,'#ffd75a');}drawBtn('나가기 (Enter)','#c84646');return;}
   txt('보유 코인의 '+(g.deathFrom==='VILLAGE'?'10':'20')+'%를 잃고 마을로 돌아갑니다.',260,240,18,'#fff');txt('장비를 강화하고 다시 도전하자!',300,275,18,'#fff');
   drawBtn('나가기 (Enter)','#c84646');
 }
@@ -1850,6 +1887,7 @@ function drawGame(){
     for(const e of sorted)if(e.y>g.py)drawEnemy(e);
     drawAlly();
     drawEps();drawFx();
+    if(g.alt==='inf'&&g.inf&&g.inf.co&&NET.partner&&!NET.partner.left)drawPartner();
     {const n=g.enemies.filter(e=>e.smoke).length;if(n)drawSmoke(n);}
   }
   for(const pr of g.projs){
@@ -1964,7 +2002,7 @@ $('invClose').onclick=closeInventory;
 
 // ---- 건물 메뉴 (상점 / 대장간 / 도박장 / 스테이지 / 광산)
 const BTABS={shop:[['shop','상점'],['inv','인벤토리'],['title','칭호']],forge:[['forge','대장간'],['inv','인벤토리'],['title','칭호']],casino:[['casino','도박장'],['title','칭호']],
-  dungeon:[['stage','스테이지'],['inv','인벤토리'],['title','칭호']],mine:[['mine','광산'],['inv','인벤토리'],['title','칭호']],
+  dungeon:[['stage','스테이지'],['inf','무한 모드'],['inv','인벤토리'],['title','칭호']],mine:[['mine','광산'],['inv','인벤토리'],['title','칭호']],
   raid:[['raid','던전'],['inv','인벤토리'],['title','칭호']],tower:[['tower','마탑'],['inv','인벤토리'],['title','칭호']],world2:[['w2','2세계'],['inv','인벤토리'],['title','칭호']],tp:[['tp','텔레포트'],['title','칭호']]};
 let bld=null,townTab='shop';
 function enterBuilding(b){
@@ -1974,7 +2012,7 @@ function enterBuilding(b){
   bld=b.id;townTab=BTABS[bld][0][0];scene='town';g.keys={};g.mouseDown=false;
   $('tmsg').textContent='';renderTown();$('town').style.display='block';
 }
-function exitBuilding(){$('town').style.display='none';scene='game';g.keys={};g.mouseDown=false;saveGame();}
+function exitBuilding(){if(NET.q==='wait'){try{NET.ws.send(JSON.stringify({t:'qcancel'}));}catch(e){}NET.q=null;}$('town').style.display='none';scene='game';g.keys={};g.mouseDown=false;saveGame();}
 function say(s){$('tmsg').textContent=s;}
 function act(s){say(s);renderTown();}
 const costText=(mats,coin)=>{
@@ -1987,7 +2025,7 @@ function renderTown(){
   const bn=bld==='tp'?'텔레포트':bById(bld).name;
   $('ttop').innerHTML=P.name+' ['+pTitle()+'] &nbsp; Lv.'+P.level+(P.titleEq?' '+titleHTML(P.titleEq):'')+' &nbsp; HP '+P.hp+'/'+maxHp()+' &nbsp; <span style="color:#ffd24a">코인 '+P.coins+'</span> &nbsp; 휠체어 Lv.'+P.wheelLevel+' &nbsp; <b style="color:#96ffc8">['+bn+']</b>';
   const go=$('goBtn');
-  if(bld==='dungeon'){go.style.display='';go.textContent='스테이지 '+stage+(stage%5===0?' (BOSS)':'')+' 출발 ▶';}
+  if(bld==='dungeon'){go.style.display=townTab==='inf'?'none':'';go.textContent='스테이지 '+stage+(stage%5===0?' (BOSS)':'')+' 출발 ▶';}
   else if(bld==='mine'){go.style.display='';go.textContent='광산 '+mineNext+'층 입장 ⛏';}
   else if(bld==='tower'){go.style.display='';go.textContent='마탑 '+towerNext+'층 입장 ✦';}
   else if(bld==='world2'){go.style.display='';go.textContent='2세계 '+w2Next+'스테이지 출발 ▶';}
@@ -1996,8 +2034,28 @@ function renderTown(){
   BTABS[bld].forEach(([k,n])=>{const b=el('button',townTab===k?'on':'',n);b.onclick=()=>{townTab=k;renderTown();};tabs.appendChild(b);});
   const body=$('tbody'),v=body.scrollTop;body.innerHTML='';
   if(townTab==='shop')buildShop(body);else if(townTab==='forge')buildForge(body);else if(townTab==='casino')buildCasino(body);
-  else if(townTab==='stage')buildStage(body);else if(townTab==='mine')buildMine(body);else if(townTab==='raid')buildRaid(body);else if(townTab==='tower')buildTower(body);else if(townTab==='w2')buildW2(body);else if(townTab==='tp')buildTp(body);else if(townTab==='title')buildTitles(body);else renderInv(body,say,renderTown);
+  else if(townTab==='stage')buildStage(body);else if(townTab==='inf')buildInf(body);else if(townTab==='mine')buildMine(body);else if(townTab==='raid')buildRaid(body);else if(townTab==='tower')buildTower(body);else if(townTab==='w2')buildW2(body);else if(townTab==='tp')buildTp(body);else if(townTab==='title')buildTitles(body);else renderInv(body,say,renderTown);
   body.scrollTop=v;
+}
+function buildInf(b){
+  b.appendChild(sec('무한 모드'));
+  b.appendChild(line('스테이지 30 수준의 일진·특수일진이 <b>5초마다 '+infCount(0)+'마리씩</b> 계속 몰려옵니다. <b>30초마다</b> 일진이 더 강해지고, 5초마다 나오는 수가 1마리씩 늘어납니다. 끝까지 버티세요!'));
+  b.appendChild(line('나가기 버튼을 누르거나 쓰러지면 종료됩니다. 종료 시 생존 시간 1초당 코인 +3. (스테이지 5 이상 클리어 후 이용 가능)'));
+  b.appendChild(line('최고 기록: <b>'+((P.infBest||0)>0?fmtT(P.infBest):'없음')+'</b>'));
+  const ok=maxCleared>=5;
+  const bt=el('button','',ok?'🎮 1인큐 시작 (혼자하기)':'🔒 스테이지 5 클리어 필요');bt.style.cssText='display:block;margin:10px 0;padding:12px 18px;font-size:17px;background:'+(ok?'#dc5028':'#555');
+  bt.onclick=()=>{if(!ok)return;$('town').style.display='none';startInf();};b.appendChild(bt);
+  b.appendChild(line('최고 팀 기록(2인큐): <b>'+((P.infBest2||0)>0?fmtT(P.infBest2):'없음')+'</b> &nbsp; (온라인 2명이 각자 버티고, 둘 중 오래 버틴 시간이 팀 기록)'));
+  const b2=el('button','',NET.q==='wait'?'⏳ 상대를 찾는 중… (눌러서 취소)':'🌐 2인큐 시작 (온라인 2명)');b2.style.cssText='display:block;margin:10px 0;padding:12px 18px;font-size:17px;background:'+(ok?'#2a6ac8':'#555');
+  b2.onclick=()=>{if(!ok)return;
+    if(NET.q==='wait'){try{NET.ws.send(JSON.stringify({t:'qcancel'}));}catch(e){}NET.q=null;NET.msg='';renderTown();return;}
+    if(!SERVER_URL){NET.msg='온라인 서버가 설정되어 있지 않습니다. (서버 주소 필요)';renderTown();return;}
+    if(!(NET.on&&NET.ws&&NET.ws.readyState===1)){NET.msg='서버에 연결되지 않았습니다. 잠시 후 다시 시도하세요.';renderTown();return;}
+    NET.q='wait';NET.msg='';NET.ws.send(JSON.stringify({t:'q2',n:P.name,lv:P.level,w:P.wheelLevel}));renderTown();};
+  b.appendChild(b2);
+  if(NET.msg)b.appendChild(line('<span style="color:#ffb0b0">'+NET.msg+'</span>'));
+  b.appendChild(sec('내 상태'));
+  b.appendChild(line('HP '+P.hp+'/'+maxHp()+' &nbsp; 공격력 '+pAtk()+' &nbsp; 방어력 '+pDef()));
 }
 function buildStage(b){
   const boss=stage%5===0,n=boss?Math.min(2+Math.floor(stage/5)*2,8):Math.min(3+stage,12);
@@ -2319,7 +2377,7 @@ function mobUpdate(){
 //   서버 주소: 주소 뒤에 ?server=wss://서버주소 를 붙이거나, 아래 DEFAULT_SERVER 에 적어 두면 됨. 비어 있으면 오프라인(기존과 동일).
 const DEFAULT_SERVER='';
 const SERVER_URL=(()=>{try{const q=new URLSearchParams(location.search).get('server');if(q){lsSet('wcrpg_server',q);return q;}}catch(e){}return lsGet('wcrpg_server')||DEFAULT_SERVER;})();
-const NET={ws:null,on:false,id:null,players:new Map(),retry:0,nextTry:0,sendT:0,last:null,away:true,count:0,lastMsg:0};
+const NET={q:null,partner:null,msg:'',ws:null,on:false,id:null,players:new Map(),retry:0,nextTry:0,sendT:0,last:null,away:true,count:0,lastMsg:0};
 function netConnect(){
   if(!SERVER_URL||NET.ws||!P||performance.now()<NET.nextTry)return;
   let ws;try{ws=new WebSocket(SERVER_URL);}catch(e){NET.nextTry=performance.now()+10000;return;}
@@ -2327,18 +2385,29 @@ function netConnect(){
   ws.onopen=()=>{NET.on=true;NET.retry=0;NET.last=null;ws.send(JSON.stringify({t:'join',n:P.name}));};
   ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch(e){return;}
     if(m.t==='welcome')NET.id=m.id;
+    else if(m.t==='match'){if(NET.q!=='wait'||scene!=='town'){try{ws.send(JSON.stringify({t:'rend',tm:0}));}catch(e){}return;}NET.q='in';NET.partner={n:m.n,lv:m.lv,w:m.w,x:480,y:300,tx:480,ty:300,f:1,hp:0,tm:0,dead:0,ended:false,left:false,rot:0};
+      if(scene==='town'){$('town').style.display='none';startInf(true);}}
+    else if(m.t==='ppos'&&NET.partner){const r=NET.partner;r.tx=m.x;r.ty=m.y;r.f=m.f;r.hp=m.hp;r.tm=m.tm;r.dead=m.dead;}
+    else if(m.t==='pend'&&NET.partner){NET.partner.ended=true;NET.partner.dead=1;NET.partner.tm=m.tm;}
+    else if(m.t==='pleft'&&NET.partner){NET.partner.left=true;NET.partner.dead=1;}
     else if(m.t==='state'){NET.count=m.n||0;NET.lastMsg=performance.now();const seen=new Set();
       for(const q of m.p){seen.add(q.id);let r=NET.players.get(q.id);
         if(!r){r={id:q.id,x:q.x,y:q.y,rot:0};NET.players.set(q.id,r);}
         r.n=q.n;r.lv=q.lv;r.ti=q.ti;r.w=q.w;r.f=q.f;r.tx=q.x;r.ty=q.y;}
       for(const id of [...NET.players.keys()])if(!seen.has(id))NET.players.delete(id);}};
-  const gone=()=>{if(NET.ws!==ws)return;NET.ws=null;NET.on=false;NET.id=null;NET.players.clear();NET.away=true;NET.retry++;NET.nextTry=performance.now()+Math.min(30000,1000*Math.pow(2,NET.retry));};
+  const gone=()=>{if(NET.ws!==ws)return;NET.ws=null;NET.on=false;NET.id=null;NET.players.clear();NET.away=true;if(NET.q==='wait'){NET.q=null;NET.msg='서버 연결이 끊겼습니다.';}if(NET.partner)NET.partner.left=true;NET.retry++;NET.nextTry=performance.now()+Math.min(30000,1000*Math.pow(2,NET.retry));};
   ws.onclose=gone;ws.onerror=()=>{try{ws.close();}catch(e){}};
 }
 function netTick(dt){
   if(!SERVER_URL)return;
   const inV=scene==='town'||(scene==='game'&&g.mode==='VILLAGE');
   if(P&&saveOk)netConnect();
+  const co=scene==='game'&&g.alt==='inf'&&g.inf&&g.inf.co&&NET.partner;
+  if(co&&NET.on&&NET.ws&&NET.ws.readyState===1&&!g.inf.sentEnd){NET.sendT-=dt;if(NET.sendT<=0){NET.sendT=.1;NET.ws.send(JSON.stringify({t:'rpos',x:Math.round(g.px),y:Math.round(g.py),f:g.mx<g.px?0:1,hp:Math.round(P.hp),tm:g.inf.t,dead:g.mode==='DEAD'?1:0}));}return netTail(dt);}
+  netMain(dt,inV);return netTail(dt);
+}
+function netTail(dt){const r=NET.partner;if(r){const k=Math.min(1,dt*12),dx=r.tx-r.x,dy=r.ty-r.y;r.x+=dx*k;r.y+=dy*k;r.rot+=Math.hypot(dx,dy)*k/26;}}
+function netMain(dt,inV){
   if(NET.on&&NET.ws&&NET.ws.readyState===1){
     NET.sendT-=dt;
     if(inV){
@@ -2354,6 +2423,11 @@ function drawRemote(r){
   ctx.save();ctx.globalAlpha=.92;wheelchairMan(r.x,r.y+30,.62,r.w||0,r.rot,r.f===1,false);ctx.restore();
   txt((r.n||'')+'  Lv.'+(r.lv||1),r.x,r.y-48,13,'#bfeaff',true,'center');
   if(r.ti){const t=titleDef(r.ti);if(t){ctx.font='bold 12px '+FONT;const w=ctx.measureText(t.name).width+16;titleBadge(r.ti,r.x-w/2,r.y-70,12);}}
+}
+function drawPartner(){
+  const r=NET.partner;ctx.save();ctx.globalAlpha=r.dead?.35:.95;wheelchairMan(r.x,r.y+30,.62,r.w||0,r.rot,r.f===1,false);ctx.restore();
+  txt((r.n||'동료')+(r.dead?'  (쓰러짐)':''),r.x,r.y-48,13,'#9fe8ff',true,'center');
+  if(!r.dead&&r.hp>0){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(r.x-22,r.y-42,44,5);ctx.fillStyle='#46d264';ctx.fillRect(r.x-21,r.y-41,42,3);}
 }
 function drawNetStatus(){
   if(!SERVER_URL)return;
