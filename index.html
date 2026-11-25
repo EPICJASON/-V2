@@ -1926,12 +1926,30 @@ const TITLES=[
   {id:'vs3',name:'3vs1',desc:'스테이지 15를 클리어한다.',grad:['#2a7bff','#16d2c8'],bg:'#14182a',got:()=>maxCleared>=15},
   {id:'immortal',name:'불멸',desc:'스테이지 30을 클리어한다.',grad:['#ffe45a','#ff8c1a'],bg:'#1c1428',got:()=>maxCleared>=30},
   {id:'jackpot',name:'잭팟',desc:'도박의 검을 얻는다.',grad:['#ffd700','#ff4b3a'],bg:'#1a1a1a',got:()=>owns('도박의 검')},
-  {id:'demonking',name:'이제 누가 마왕이지?',desc:'마탑 15층을 클리어한다.',grad:['#c25bff','#ff3b7a'],bg:'#140a24',got:()=>towerNext>15}
+  {id:'demonking',name:'이제 누가 마왕이지?',desc:'마탑 15층을 클리어한다.',grad:['#c25bff','#ff3b7a'],bg:'#140a24',got:()=>towerNext>15},
+  {id:'firstranker',name:'퍼스트랭커',desc:'비밀 코드를 입력한다.',grad:['#ff3b3b','#ff9a1a','#ffe83b','#3bdc5a','#3b9bff','#8a4bff','#ff4bd2'],bg:'#12121c',got:()=>!!P.firstRanker},
+  {id:'miner',name:'채굴꾼',desc:'광산 20층을 클리어한다.',grad:['#b08a5a','#ffd27a'],bg:'#1e1610',got:()=>mineNext>20},
+  {id:'boss',name:'보스',desc:'2세계 30스테이지를 클리어한다.',grad:['#ff2a6a','#7a00ff'],bg:'#140818',got:()=>w2Next>30},
+  {id:'rookie',name:'새내기',desc:'스테이지 5를 클리어한다.',grad:['#9fe08a','#4fc3a1'],bg:'#101c18',got:()=>maxCleared>=5},
+  {id:'bully',name:'불량 퇴치',desc:'스테이지 10을 클리어한다.',grad:['#ff9a5a','#ff5a5a'],bg:'#1c1214',got:()=>maxCleared>=10},
+  {id:'cave',name:'지하 탐험가',desc:'광산 10층을 클리어한다.',grad:['#9aa0b0','#6a7a9a'],bg:'#14161c',got:()=>mineNext>10},
+  {id:'apprentice',name:'마법사 견습생',desc:'마탑 5층을 클리어한다.',grad:['#7ab0ff','#b07aff'],bg:'#10122a',got:()=>towerNext>5},
+  {id:'raider',name:'던전 정복자',desc:'던전 3단계를 클리어한다.',grad:['#ff7a3a','#c8283c'],bg:'#1a1014',got:()=>raidAt[2]>0},
+  {id:'traveler',name:'이세계 여행자',desc:'2세계에 입장한다.',grad:['#d68cff','#ff8ce0'],bg:'#1a1024',got:()=>world2Open},
+  {id:'w2hunter',name:'2세계 사냥꾼',desc:'2세계 10스테이지를 클리어한다.',grad:['#ff8cd2','#ffd75a'],bg:'#201020',got:()=>w2Next>10},
+  {id:'veteran',name:'베테랑',desc:'레벨 20에 도달한다.',grad:['#78ffb4','#3bb0ff'],bg:'#0e1c20',got:()=>P.level>=20},
+  {id:'hero',name:'전설의 용사',desc:'레벨 50에 도달한다.',grad:['#ffe45a','#ff5a3a'],bg:'#1c1810',got:()=>P.level>=50},
+  {id:'rich',name:'큰손',desc:'코인 10000개 이상을 보유한다.',grad:['#ffd700','#fff2a0'],bg:'#1c1a0c',got:()=>P.coins>=10000},
+  {id:'endure',name:'버티는 자',desc:'무한 모드에서 1분을 버틴다.',grad:['#5ad2ff','#5a7aff'],bg:'#0e1424',got:()=>(P.infBest||0)>=60},
+  {id:'unyielding',name:'불굴의 의지',desc:'무한 모드에서 5분을 버틴다.',grad:['#ff5a5a','#ffa33a'],bg:'#201010',got:()=>(P.infBest||0)>=300},
+  {id:'maceowner',name:'철퇴의 주인',desc:'철퇴를 얻는다.',grad:['#c8c8d0','#8a8a96'],bg:'#16161c',got:()=>owns('철퇴')}
 ];
+const gradCss=g=>g.join(',');
+const gradStops=(gr,g)=>g.forEach((c,i)=>gr.addColorStop(g.length>1?i/(g.length-1):0,c));
 const titleDef=id=>TITLES.find(t=>t.id===id);
 let titleQ=[],titleToast=null;
 function titleHTML(id){const t=titleDef(id);if(!t)return '';
-  return '<span style="background:'+t.bg+';border-radius:8px;padding:1px 8px;font-weight:bold"><span style="background-image:linear-gradient(90deg,'+t.grad[0]+','+t.grad[1]+');-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent">'+t.name+'</span></span>';}
+  return '<span style="background:'+t.bg+';border-radius:8px;padding:1px 8px;font-weight:bold"><span style="background-image:linear-gradient(90deg,'+gradCss(t.grad)+');-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent">'+t.name+'</span></span>';}
 function checkTitles(){   // 조건을 만족한 칭호를 얻는다 (기존 저장 데이터도 처음 불러올 때 소급 적용)
   if(!P)return;if(!Array.isArray(P.titles))P.titles=[];
   for(const t of TITLES){if(!P.titles.includes(t.id)&&t.got()){P.titles.push(t.id);titleQ.push(t.id);if(g.mode==='CLEAR')g.dropLines.unshift({s:'★ 칭호 획득: '+t.name,c:'#ff8080'});}}
@@ -1940,7 +1958,7 @@ function titleBadge(id,x,y,size){   // 캔버스: 알약 배경 + 그라데이�
   const t=titleDef(id);if(!t)return 0;
   ctx.font='bold '+size+'px '+FONT;const w=ctx.measureText(t.name).width;
   rrect(x,y-size,w+16,size+8,8,t.bg);
-  const gr=ctx.createLinearGradient(x+8,0,x+8+w,0);gr.addColorStop(0,t.grad[0]);gr.addColorStop(1,t.grad[1]);
+  const gr=ctx.createLinearGradient(x+8,0,x+8+w,0);gradStops(gr,t.grad);
   ctx.fillStyle=gr;ctx.textAlign='left';ctx.fillText(t.name,x+8,y);return w+16;
 }
 function drawTitleToast(){
@@ -1953,7 +1971,7 @@ function drawTitleToast(){
   rrect(W/2-bw/2,514,bw,80,14,'rgba(18,18,30,.95)','#ffd75a');
   txt('★ 칭호 획득! ★',W/2,538,18,'#ffd75a',true,'center');
   rrect(W/2-w/2-12,546,w+24,38,10,t.bg);
-  const gr=ctx.createLinearGradient(W/2-w/2,0,W/2+w/2,0);gr.addColorStop(0,t.grad[0]);gr.addColorStop(1,t.grad[1]);
+  const gr=ctx.createLinearGradient(W/2-w/2,0,W/2+w/2,0);gradStops(gr,t.grad);
   ctx.font='bold 26px '+FONT;ctx.fillStyle=gr;ctx.textAlign='center';ctx.fillText(t.name,W/2,574);ctx.textAlign='left';ctx.restore();
 }
 function buildTitles(b){
@@ -2259,6 +2277,11 @@ function codeSubmit(){
     const have=new Set(allEquip().map(i=>i.name));let n=0;
     for(const gr of Object.keys(WEAPONS))for(const f of WEAPONS[gr]){const it=f();if(!have.has(it.name)){P.bag.push(it);have.add(it.name);n++;}}
     m.style.color='#8f8';m.textContent=n?('개발자 능력 활성화! 모든 무기 '+n+'종이 인벤토리에 추가되었습니다. (I키 → 장착)'):'이미 모든 무기를 가지고 있습니다.';
+    try{saveGame();}catch(e){}
+  }else if(c==='도완이랭커보이'){
+    if(!P||!P.bag){m.style.color='#f88';m.textContent='먼저 게임을 시작(START)한 뒤 입력하세요.';return;}
+    if(P.firstRanker){m.style.color='#ff8';m.textContent='이미 칭호를 받았습니다. (퍼스트랭커)';return;}
+    P.firstRanker=true;checkTitles();m.style.color='#8f8';m.textContent='칭호 획득! 퍼스트랭커 (칭호 탭에서 장착하세요)';
     try{saveGame();}catch(e){}
   }else{m.style.color='#f88';m.textContent='올바르지 않은 코드입니다.';}
 }
