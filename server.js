@@ -111,16 +111,17 @@ function onMessage(p, text) {
   else if (m.t === 'pos') {
     p.x = num(m.x, 0, WORLD_W, p.x); p.y = num(m.y, 0, WORLD_H, p.y);
     p.f = m.f ? 1 : 0; p.w = num(m.w, 0, 20, 0) | 0; p.lv = num(m.lv, 1, 9999, 1) | 0;
-    p.ti = str(m.ti, 12); p.v = true;
+    p.ti = str(m.ti, 12); p.dv = m.dv ? 1 : 0; p.v = true;
     if (m.n) p.n = str(m.n, 12) || p.n;
   }
   else if (m.t === 'away') { p.v = false; }
   // ---- 무한 모드 2인큐: 대기열에서 2명을 짝지어 주고, 방 안에서는 서로의 상태만 중계한다
-  else if (m.t === 'q2') { p.v = false; if (p.room) leaveRoom(p); if (!queue.includes(p)) queue.push(p); p.qn = str(m.n, 12) || p.n; p.qlv = num(m.lv, 1, 9999, 1) | 0; p.qw = num(m.w, 0, 20, 0) | 0; matchUp(); }
+  else if (m.t === 'q2') { p.v = false; if (p.room) leaveRoom(p); if (!queue.includes(p)) queue.push(p); p.qn = str(m.n, 12) || p.n; p.qlv = num(m.lv, 1, 9999, 1) | 0; p.qw = num(m.w, 0, 20, 0) | 0; p.qdv = m.dv ? 1 : 0; matchUp(); }
   else if (m.t === 'qcancel') { const i = queue.indexOf(p); if (i >= 0) queue.splice(i, 1); }
   else if (m.t === 'rpos' && p.room && p.partner) {
     sendJson(p.partner, { t: 'ppos', x: num(m.x, 0, WORLD_W, 0), y: num(m.y, 0, WORLD_H, 0), f: m.f ? 1 : 0, hp: num(m.hp, 0, 1e9, 0) | 0, tm: num(m.tm, 0, 1e7, 0), dead: m.dead ? 1 : 0 });
   }
+  else if (m.t === 'rel' && p.room && p.partner && m.d && typeof m.d === 'object') { sendJson(p.partner, { t: 'rel', d: m.d }); }   // 2인큐: 같은 전투를 공유하기 위한 단순 중계
   else if (m.t === 'rend' && p.room) { p.ended = true; if (p.partner) { sendJson(p.partner, { t: 'pend', tm: num(m.tm, 0, 1e7, 0) }); if (p.partner.ended) leaveRoom(p, true); } }
 }
 
@@ -130,8 +131,8 @@ function matchUp() {
     const a = queue.shift(), b = queue.shift();
     if (!players.has(a.id) || !players.has(b.id)) { if (players.has(a.id)) queue.unshift(a); if (players.has(b.id)) queue.unshift(b); continue; }
     a.room = b.room = 'r' + (nextId++); a.partner = b; b.partner = a;
-    sendJson(a, { t: 'match', n: b.qn, lv: b.qlv, w: b.qw });
-    sendJson(b, { t: 'match', n: a.qn, lv: a.qlv, w: a.qw });
+    sendJson(a, { t: 'match', role: 'host', n: b.qn, lv: b.qlv, w: b.qw, dv: b.qdv });
+    sendJson(b, { t: 'match', role: 'guest', n: a.qn, lv: a.qlv, w: a.qw, dv: a.qdv });
   }
 }
 function leaveRoom(p, quiet) {
@@ -147,7 +148,7 @@ setInterval(() => {
     if (!p.v) { sendJson(p, { t: 'state', p: [], n: vis.length }); continue; }
     const list = vis.filter(o => o !== p && Math.hypot(o.x - p.x, o.y - p.y) < VIEW_R)
       .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, VIEW_MAX)
-      .map(o => ({ id: o.id, n: o.n, lv: o.lv, ti: o.ti, w: o.w, x: Math.round(o.x), y: Math.round(o.y), f: o.f }));
+      .map(o => ({ id: o.id, n: o.n, lv: o.lv, ti: o.ti, dv: o.dv ? 1 : 0, w: o.w, x: Math.round(o.x), y: Math.round(o.y), f: o.f }));
     sendJson(p, { t: 'state', p: list, n: vis.length });
   }
 }, TICK_MS);
