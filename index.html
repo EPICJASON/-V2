@@ -167,6 +167,7 @@ const mk=(name,type,grade,price,o)=>Object.assign({name,type,grade,price,atk:0,d
 // ---- 신규 전설 무기 11종 (모든 R 스킬 쿨타임 20초)
 const NEWW={
   dusk:{n:'황혼의 심판자',atk:9,reach:90,atkCd:.45,desc:'패시브 처형자의 표식: 적을 3회 타격할 때마다 표식을 남기고, 표식이 새겨진 적에게 주는 피해 +15% | R 종말의 일격: 전방으로 돌진하며 경로상의 모든 적을 벰, 처치 성공 시 R 쿨타임 초기화 (쿨타임 20초)'}};
+NEWW.undead={n:'언데드 낫',atk:11,reach:100,atkCd:.5,desc:'공격 시 5% 확률로 출혈 | 적을 처치하면 30% 확률로 영혼 흡수 (일반 일진: 일반 영혼 / 특수 일진: 70% 일반·30% 특수 영혼) | E 일반 영혼 소환: 95% 처치한 일진 부활(HP 1500) · 5% 특수 일진(사이버·총잡이·분조장, HP 2000) | R 특수 영혼 발동: 5% 보스(정크·퐁키·정키, HP 3000, 공격력 강화) · 95% 일반/특수 일진 소환 | 소환된 아군은 머리 위에 \'아군\' 표시'};
 const WEAPONS={
   BASIC:[()=>mk('부캉이의 앞니','WEAPON','BASIC',20,{atk:5})],
   RARE:[()=>mk('푸바오의 대나무','WEAPON','RARE',80,{atk:7}),()=>mk('나무 도끼','WEAPON','RARE',90,{atk:5,crit:.10,critDmg:10}),
@@ -436,7 +437,7 @@ const PASSIVES=[
 const g={mode:'STAGE',px:0,py:0,aim:0,mx:W/2,my:H/2,clock:0,attackCd:0,swingT:0,invuln:0,lastCombat:0,regenAcc:0,subCd:0,wheelRot:0,spawnTimer:0,
   keys:{},mouseDown:false,paused:false,userPaused:false,regenActive:false,enemies:[],projs:[],texts:[],queue:[],curStage:0,
   tStep:0,dummyHits:0,movedDist:0,usedPotion:false,openedInv:false,dropLines:[],clearCoins:0,ending:false,
-  passive:null,passives:[],choices:[],ally:null,pStun:0,qCd:0,demonOn:false,bombUsed:false,mine:false,mineFloor:0,cdE:0,cdR:0,dash:null,akFlash:0,sx:W/2,sy:H/2,deathFrom:null};
+  passive:null,passives:[],choices:[],ally:null,allies:[],souls:[],ss:[],pStun:0,qCd:0,demonOn:false,bombUsed:false,mine:false,mineFloor:0,cdE:0,cdR:0,dash:null,akFlash:0,sx:W/2,sy:H/2,deathFrom:null};
 const exitRect={x:W-120,y:134,w:108,h:30},tpRect={x:10,y:H-76,w:150,h:30};
 const btnRect={x:380,y:450,w:200,h:44},skipRect={x:W-190,y:100,w:170,h:34};
 const inRect=(r,x,y)=>x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;
@@ -446,7 +447,7 @@ function resetCommon(){
   g.px=AX+160;g.py=AY+AH/2;g.clock=10;g.lastCombat=0;g.regenAcc=0;g.invuln=0;g.attackCd=0;g.swingT=0;g.subCd=1;
   g.mouseDown=false;g.paused=false;g.userPaused=false;scene='game';
   g.passive=null;g.passives=[];g.choices=[];g.ally=null;g.pStun=0;g.qCd=0;g.demonOn=false;g.bombUsed=false;
-  g.cdE=0;g.cdR=0;g.dash=null;g.akFlash=0;g.deathFrom=null;g.alt=null;g.waves=null;g.eid=0;g.spec=false;g.gHits=[];g.gStun=0;g.guest=false;g.host=false;g.pmap=null;g.eps=[];g.marks=[];g.cut=null;g.shield=0;g.soul=0;g.storms=[];g.fx=[];g.later=[];g.pst=null;g.tf=null;g.warpReady=false;g.warpT=0;g.bowN=0;g.mc=0;
+  g.allies=[];g.souls=[];g.ss=[];g.cdE=0;g.cdR=0;g.dash=null;g.akFlash=0;g.deathFrom=null;g.alt=null;g.waves=null;g.eid=0;g.spec=false;g.gHits=[];g.gStun=0;g.guest=false;g.host=false;g.pmap=null;g.eps=[];g.marks=[];g.cut=null;g.shield=0;g.soul=0;g.storms=[];g.fx=[];g.later=[];g.pst=null;g.tf=null;g.warpReady=false;g.warpT=0;g.bowN=0;g.mc=0;
   setArena();
 }
 function startTutorial(){
@@ -682,7 +683,7 @@ function w2Clear(luck){
 const CUT_END=26,CUT_FIGHT=[4.4,19.4];
 const CUT_LINES=[[.3,2.2,'???','…약하군.'],[2.3,4.4,'종현','거기까지다!! 내 친구한테서 떨어져!'],[4.6,8,'종현','내가 상대해 주마!'],[8.2,11.5,'???','하찮은 것.'],[11.7,15,'종현','아직… 안 끝났어!'],[15.2,19.4,'???','재미있군. 너를 데려가마.'],[19.6,21.6,'종현','으아아아—!'],[21.8,24,'???','따라와라… 2세계로.'],[24.1,26,'','(종현을 구해야 해…!)']];
 function startCutscene(e){
-  g.mode='CUT';g.keys={};g.mouseDown=false;g.dash=null;g.projs=[];g.eps=[];g.marks=[];g.enemies=[];g.queue=[];g.ally=null;g.pStun=0;g.invuln=0;g.waves=null;
+  g.mode='CUT';g.allies=[];g.keys={};g.mouseDown=false;g.dash=null;g.projs=[];g.eps=[];g.marks=[];g.enemies=[];g.queue=[];g.ally=null;g.pStun=0;g.invuln=0;g.waves=null;
   P.hp=1;
   const fx=clamp(g.px+(g.px<W/2?300:-300),AX+140,AX+AW-140);
   g.cut={t:0,qx:e.x,qy:e.y,fx,fy:AY+AH/2,dir:g.px<fx?-1:1};g.mx=fx;g.my=g.py;cutPos(g.cut);
@@ -977,6 +978,7 @@ function nearestTo(x,y){let best=null,bd=1e9;for(const e of g.enemies){const d=M
 function useWeaponR(){
   if((g.mode!=='STAGE'&&g.mode!=='VILLAGE')||g.pStun>0)return;
   const sk=wSkill();if(!sk||sk==='caduceus')return;
+  if(sk==='undead'){summonSpecial();return;}
   if(g.cdR>0){ftext(g.px,g.py-50,'R 쿨타임 '+Math.ceil(g.cdR)+'s','#ccc',14);return;}
   if(!g.enemies.length)return;
   const m=g.demonOn?2:1;
@@ -1002,7 +1004,7 @@ function useWeaponR(){
   g.lastCombat=g.clock;
 }
 
-const WP_RN={dusk:'종말의 일격'};
+const WP_RN={dusk:'종말의 일격',undead:'특수 영혼 발동'};
 const takenMul=e=>(e.mark?1.15:1)*(e.frozen>0?1.25:1)*(e.broken?1.25:1)*(e.venomT>0?1.25:1);
 const healP=n=>{n=Math.round(n);if(n>0&&P.hp<maxHp()){const h=Math.min(n,maxHp()-P.hp);P.hp+=h;ftext(g.px,g.py-58,'+'+h,'#78ff9a',14);}if(g.ally&&n>0)g.ally.hp=Math.min(g.ally.maxHp,g.ally.hp+Math.round(g.ally.maxHp*.1));};
 const addFx=o=>{(g.fx=g.fx||[]).push(o);};
@@ -1011,10 +1013,98 @@ const nearestNQ=()=>{let b=null,bd=1e9;for(const e of tgtList()){const d=Math.hy
 function wpHit(e,dmg,tag,c,w){   // 무기별 패시브 (기본 공격이 적중할 때)
   const sk=w.skill;let fixed=false;
   if(sk==='dusk'){e.h3=(e.h3||0)+1;if(e.h3>=3){e.h3=0;if(!e.mark){e.mark=true;ftext(e.x,e.y-76,'처형자의 표식','#ff6060',15);}}}
+  if(sk==='undead'&&Math.random()<.05){e.bleed={t:4,acc:0,dps:Math.max(1,Math.round(pAtk()*.25))};ftext(e.x,e.y-76,'출혈','#ff4040',14);}
   return {dmg,tag,c,fixed};
+}
+// ---- 언데드 낫: 영혼 흡수 / 아군 소환
+const ALLY_CAP=6,SP_KINDS=['gun','cyber','anger'];
+function absorbSoul(e){
+  if(e.boss||e.ally||Math.random()>=.3)return;
+  const rec={name:e.sp?'일진':e.name,shirt:e.sp?'#96969f':e.shirt,hair:e.hair,bat:!e.sp&&!!e.bat,s:e.s||g.curStage,dmg:e.dmg,sp:e.sp||null};
+  if(e.sp&&Math.random()>=.7){g.ss.push(rec);ftext(e.x,e.y-90,'특수 영혼 흡수!','#ff80ff',20);}
+  else{g.souls.push(rec);ftext(e.x,e.y-90,'영혼 흡수!','#a0e8ff',18);}
+}
+function allyBase(){const s=g.alt==='inf'?30+2*(P.level||1):g.curStage||1;return s;}
+function toAlly(e,hp,dmgMul){
+  e.ally=true;e.maxHp=e.hp=hp;e.dmg=Math.max(1,Math.floor(e.dmg*dmgMul));e.atkCd=.5;e.hitFlash=0;e.dashy=false;e.canCombo=false;e.aCd=0;e.dir=Math.random()<.5?1:-1;
+  e.x=g.px+(Math.random()<.5?-1:1)*(50+rnd(30));e.y=g.py+rnd(40)-20;e.gunCd=.8;e.burst=0;e.burstT=0;e.aim=0;
+  if(e.sp==='anger')e.speed=Math.max(e.speed,150);
+  g.allies.push(e);ftext(e.x,e.y-90,'소환!','#80ffb0',20);return e;
+}
+function summonSp(kind,hp){const e=makeSpecial(allyBase(),kind);return toAlly(e,hp,1.5);}
+function summonNormal(){
+  if(g.mode!=='STAGE'||g.guest||g.pStun>0||wSkill()!=='undead')return;
+  if(g.cdE>0){ftext(g.px,g.py-50,'E 쿨타임 '+Math.ceil(g.cdE)+'s','#ccc',14);return;}
+  if(!g.souls.length){ftext(g.px,g.py-50,'일반 영혼이 없다','#ccc',14);return;}
+  if(g.allies.length>=ALLY_CAP){ftext(g.px,g.py-50,'아군은 최대 '+ALLY_CAP+'명','#ccc',14);return;}
+  const r=g.souls.shift();g.cdE=1.5;g.lastCombat=g.clock;
+  if(Math.random()<.05)summonSp(SP_KINDS[rnd(3)],2000);
+  else{const e=makeEnemy(r.s,false);e.name=r.name;e.shirt=r.shirt;e.hair=r.hair;e.bat=r.bat;e.dmg=r.dmg;e.dashy=false;if(e.bat)e.reach=14;toAlly(e,1500,1.5);}
+}
+function summonSpecial(){
+  if(g.mode!=='STAGE'||g.guest||g.pStun>0)return;
+  if(g.cdR>0){ftext(g.px,g.py-50,'R 쿨타임 '+Math.ceil(g.cdR)+'s','#ccc',14);return;}
+  if(!g.ss.length){ftext(g.px,g.py-50,'특수 영혼이 없다','#ccc',14);return;}
+  if(g.allies.length>=ALLY_CAP){ftext(g.px,g.py-50,'아군은 최대 '+ALLY_CAP+'명','#ccc',14);return;}
+  g.ss.shift();g.cdR=1.5;g.lastCombat=g.clock;
+  if(Math.random()<.05){
+    const i=rnd(3),p=[['정크','#d04030'],['정키','#3080d0'],['퐁키','#30b050']][i],e=makeEnemy(allyBase(),true);
+    e.name=p[0];e.shirt=p[1];e.speed=118;if(i===2){e.bat=true;e.reach=22;}
+    toAlly(e,3000,1.5*1.3);ftext(e.x,e.y-130,'보스 소환! '+p[0],'#ffd060',24);
+  }else if(Math.random()<.5)summonSp(SP_KINDS[rnd(3)],2000);
+  else{const e=makeEnemy(allyBase(),false);e.dashy=false;toAlly(e,1500,1.5);}
+}
+function allyTarget(a){let b=null,bd=1e9;for(const e of g.enemies){if(e.q||e.dummy||e.hp<=0)continue;const d=Math.hypot(e.x-a.x,e.y-a.y);if(d<bd){bd=d;b=e;}}return b;}
+function allyHit(t,a,dmg,tag,fixed){g.allyKill=true;damage(t,dmg,tag,'#9fffc0',fixed);g.allyKill=false;}
+function updateAllies(dt){
+  if(!g.allies||!g.allies.length)return;
+  for(const a of g.allies.slice()){
+    a.hitFlash-=dt;a.atkAnim-=dt;a.atkCd-=dt;a.aCd-=dt;a.gunCd-=dt;
+    if(a.stun>0){a.stun-=dt;continue;}
+    const t=allyTarget(a),sp=a.speed*(a.boss?1:1);
+    let tx,ty,want=0;
+    if(t){tx=t.x;ty=t.y;if(a.gun)want=300;else if(a.cyber)want=420;}else{tx=g.px;ty=g.py;want=90;}
+    const dx=tx-a.x,dy=ty-a.y,d=Math.max(.001,Math.hypot(dx,dy)),ux=dx/d,uy=dy/d;
+    if(t){a.aim=Math.atan2(dy,dx);a.fx=dx>=0;}else a.fx=dx>=0;
+    if(a.gun||a.cyber){
+      if(d>want+60){a.x+=ux*sp*dt;a.y+=uy*sp*dt;}else if(d<want-80&&t){a.x-=ux*sp*dt;a.y-=uy*sp*dt;}
+      if(t&&a.cyber&&a.gunCd<=0&&d<780){a.gunCd=.5;a.atkAnim=.1;addFx({k:'l',x1:a.x,y1:a.y,x2:t.x,y2:t.y,c:'#40ffff',w:3,t:.15});allyHit(t,a,40,null,true);}
+      if(t&&a.gun){
+        if(a.burst>0){a.burstT-=dt;if(a.burstT<=0){a.atkAnim=.08;a.burst--;a.burstT=.1;addFx({k:'l',x1:a.x,y1:a.y+4,x2:t.x,y2:t.y,c:'#ffd24a',w:2,t:.08});allyHit(t,a,Math.max(1,Math.floor(a.dmg*.4)),null,true);if(a.burst<=0)a.gunCd=1.6;}}
+        else if(a.gunCd<=0&&d<700){a.burst=4;a.burstT=0;}
+      }
+    }else{
+      if(d>a.r+16+(a.reach||0)+(t?0:50)){a.x+=ux*sp*dt;a.y+=uy*sp*dt;}
+      else if(t&&a.atkCd<=0){
+        a.atkCd=1.1;a.atkAnim=.25;allyHit(t,a,a.dmg,null,false);
+        if(a.sp==='anger'&&Math.random()<.3&&t.hp>0){t.stun=Math.max(t.stun||0,1.5);ftext(t.x,t.y-70,'스턴!','#ffe040',18);}
+      }
+    }
+    a.x=clamp(a.x,B.x0+10,B.x1-10);a.y=clamp(a.y,B.y0+10,B.y1-10);
+  }
+  // 적이 가까운 아군을 공격
+  for(const e of g.enemies){
+    if(e.dummy||e.q||e.stun>0||e.gun||e.cyber)continue;
+    e.aCd=(e.aCd||0)-dt;if(e.aCd>0)continue;
+    for(const a of g.allies){
+      if(Math.hypot(a.x-e.x,a.y-e.y)<e.r+a.r+(e.reach||0)+6){
+        a.hp-=e.dmg;a.hitFlash=.12;e.aCd=1.1;e.atkAnim=.25;ftext(a.x,a.y-60,String(e.dmg),'#ff9090',14);break;
+      }
+    }
+  }
+  for(const a of g.allies.slice()){if(a.hp<=0){ftext(a.x,a.y-60,'아군 쓰러짐','#ccc',16);g.allies.splice(g.allies.indexOf(a),1);}}
+}
+function drawAllies(){
+  for(const a of g.allies){
+    drawEnemy(a);
+    const top=a.y-(a.boss?112:78);
+    txt('아군',a.x,top,14,'#7dffa8',true);
+    rrect(a.x-24,top+6,48,5,2,'#222');rrect(a.x-24,top+6,48*clamp(a.hp/a.maxHp,0,1),5,2,'#4cd070');
+  }
 }
 function wpKill(e){
   const w=P.weapon,sk=w&&w.skill;
+  if(sk==='undead'&&!g.allyKill)absorbSoul(e);
   if(sk==='dusk'&&g.dash&&g.dash.dusk&&g.cdR>0){g.cdR=0;ftext(g.px,g.py-84,'R 쿨타임 초기화!','#ffd070',16);}
 }
 const WP_R={
@@ -1034,7 +1124,7 @@ function drawFx(){
     else{ctx.globalAlpha=a*.5;ctx.strokeStyle=f.c;ctx.lineWidth=10;ctx.beginPath();ctx.arc(f.x,f.y,f.r*(1-a*.5),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}}
 }
 function wpHudTxt(wsk){
-  let t='';if(g.shield>0)t+='보호막 '+Math.round(g.shield)+'   ';
+  let t='';if(g.shield>0)t+='보호막 '+Math.round(g.shield)+'   ';if(wsk==='undead')t+='[E] 일반영혼 '+g.souls.length+' '+cdTxt(g.cdE)+'   특수영혼 '+g.ss.length+'   아군 '+g.allies.length+'   ';
   return t;
 }
 // ---- 철퇴: 공격키를 누르고 있으면 최대 7초 차징 → 떼면 가장 가까운 적에게 던짐
@@ -1222,7 +1312,7 @@ function updateGame(dt){
   if(g.guest)guestUpdate(dt);else updateEnemies(dt);
   if(g.mode==='CUT')return;
   updateEps(dt);
-  wpUpdate(dt);
+  updateAllies(dt);wpUpdate(dt);
   updatePassives(dt);
   if(P.wheelWeapon){
     g.subCd-=dt;
@@ -1426,7 +1516,7 @@ function drawPlayerSprite(){
     if(g.akFlash>0)circ(gx+ca*42,gy+sa*42,9,'rgba(255,220,100,.9)');
   }else if(NEWW[sk]&&(NEWW[sk].ranged||!(g.swingT>0))){
     const ca=Math.cos(g.aim),sa=Math.sin(g.aim),gx=g.px+ca*14,gy=g.py-6+sa*14,L=NEWW[sk].reach?Math.min(60,NEWW[sk].reach*.55):34;
-    const col={dusk:'#ff8a50'}[sk];
+    const col={dusk:'#ff8a50',undead:'#9a60e0'}[sk];
     ln(gx,gy,gx+ca*L,gy+sa*L,6,'#555');ln(gx+ca*L*.6,gy+sa*L*.6,gx+ca*L,gy+sa*L,6,col);circ(gx+ca*L,gy+sa*L,5,col);
     if(g.shield>0){ctx.strokeStyle='rgba(120,200,255,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(g.px,g.py,44,0,Math.PI*2);ctx.stroke();}
   }else if(sk==='mace'){
@@ -1449,7 +1539,7 @@ function drawPlayerSprite(){
   if(g.demonOn)txt('악마의 계약',g.px,g.py-80,13,'#ff6080',true,'center');
 }
 function drawEnemy(e){
-  const s=e.boss?.9:.5,right=g.px>e.x;
+  const s=e.boss?.9:.5,right=e.ally?(e.fx!==undefined?e.fx:g.px>e.x):g.px>e.x;
   if(e.q){const p=.5+.5*Math.sin(g.clock*4);circ(e.x,e.y+10,72+p*8,'rgba(140,0,200,.22)');circ(e.x,e.y+10,48+p*6,'rgba(200,60,255,.18)');}
   fighter(e.x,e.y+(e.boss?52:30),s,e.hitFlash>0?'#fff':e.shirt,e.hair,e.atkAnim>0?2:0,right,e.boss);
   if(e.wp)drawBossWeapon(e,right);
@@ -1459,7 +1549,7 @@ function drawEnemy(e){
   if(e.chuuni){const hx=e.x+(right?16:-16);if(e.dragonCd<1.2||e.atkAnim>0){circ(hx,e.y,8+Math.sin(g.clock*20)*2,'rgba(150,40,220,.8)');circ(hx,e.y,4,'#1a0828');}rrect(e.x-8,e.y-17,7,4,1,'#111');}
   if(e.shield){const sx=e.x+(right?10:-26);rrect(sx,e.y-20,16,46,5,'#8ab4d8','#e8f4ff');}
   if(e.drainT>0)ln(e.x,e.y,g.px,g.py,4,'rgba(255,70,170,.8)');
-  if(!e.dummy||e.hp<e.maxHp){
+  if(!e.ally&&(!e.dummy||e.hp<e.maxHp)){
     const bw=e.boss?90:44,top=e.y-(e.boss?100:56);
     ctx.fillStyle='rgba(0,0,0,.63)';ctx.fillRect(e.x-bw/2-1,top-1,bw+2,7);
     ctx.fillStyle=e.boss?'#dc3cdc':'#e64646';ctx.fillRect(e.x-bw/2,top,bw*Math.max(0,e.hp)/e.maxHp,5);if(e.q)txt('HP ∞',e.x+bw/2+6,top+7,12,'#dc9cff',true);
@@ -1963,7 +2053,7 @@ function drawGame(){
     for(const e of sorted)if(e.y<=g.py)drawEnemy(e);
     if(!g.spec)drawPlayerSprite();
     for(const e of sorted)if(e.y>g.py)drawEnemy(e);
-    drawAlly();
+    drawAlly();drawAllies();
     drawEps();drawFx();
     if(g.alt==='inf'&&g.inf&&g.inf.co&&NET.partner&&!NET.partner.left)drawPartner();
     if(g.spec&&g.mode==='STAGE'){ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(W/2-170,H-70,340,36);txt('👁 관전 중 — '+(NET.partner?NET.partner.n:'')+' 님이 버티는 중',W/2,H-46,17,'#9fe8ff',true,'center');}
@@ -2470,7 +2560,7 @@ addEventListener('keydown',e=>{
   else if(e.code==='KeyR'){if(hasRSkill())useWeaponR();else useR();}   // R: 무기 스킬 우선, 없으면 악마의 속삭임
   else if(e.code==='KeyT'){if(g.mode==='VILLAGE')openTeleport();}
   else if(e.code==='KeyF')useR();                                       // F: 악마의 속삭임 (R 스킬 무기 장착 중에도 사용)
-  else if(e.code==='KeyE'){if(g.mode==='VILLAGE'&&V.near)enterBuilding(V.near);else useWeaponE();}   // 마을: 건물 입장
+  else if(e.code==='KeyE'){if(g.mode==='VILLAGE'&&V.near)enterBuilding(V.near);else if(wSkill()==='undead')summonNormal();else useWeaponE();}   // 마을: 건물 입장
   else if(e.code==='KeyP'){if(g.mode==='STAGE'||g.mode==='TUTORIAL'||g.mode==='VILLAGE')g.userPaused=!g.userPaused;}
   else if(e.code==='Enter'){
     if(g.mode==='CLEAR')leaveClear();else if(g.mode==='DEAD')leaveDead();else if(g.mode==='TUTORIAL'&&g.tStep>=4)endTutorial();else if(g.mode==='VILLAGE'&&V.near)enterBuilding(V.near);
