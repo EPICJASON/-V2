@@ -166,8 +166,7 @@ const GRADES=['BASIC','RARE','EPIC','LEGEND'];
 const mk=(name,type,grade,price,o)=>Object.assign({name,type,grade,price,atk:0,def:0,plus:0,hpBonus:0,shotDmg:0,critDmg:0,crit:0,kill:0,speedBonus:0,shotCd:0,skill:null,reach:0,atkCd:0,negate:0,desc:''},o||{});
 // ---- 신규 전설 무기 11종 (모든 R 스킬 쿨타임 20초)
 const NEWW={
-  dusk:{n:'황혼의 심판자',atk:9,reach:90,atkCd:.45,desc:'패시브 처형자의 표식: 적을 3회 타격할 때마다 표식을 남기고, 표식이 새겨진 적에게 주는 피해 +15% | R 종말의 일격: 전방으로 돌진하며 경로상의 모든 적을 벰, 처치 성공 시 R 쿨타임 초기화 (쿨타임 20초)'},
-  sunfire:{n:'태양불꽃 지팡이',atk:8,ranged:1,atkCd:.45,desc:'패시브 작열: 공격마다 5초간 매초 최대 체력 4% 화염 피해, 무한 중첩 | R 초신성 폭발: 모든 적에게 치명적인 화염 피해, 5초간 화염 피해 2배 (쿨타임 20초)'}};
+  dusk:{n:'황혼의 심판자',atk:9,reach:90,atkCd:.45,desc:'패시브 처형자의 표식: 적을 3회 타격할 때마다 표식을 남기고, 표식이 새겨진 적에게 주는 피해 +15% | R 종말의 일격: 전방으로 돌진하며 경로상의 모든 적을 벰, 처치 성공 시 R 쿨타임 초기화 (쿨타임 20초)'}};
 const WEAPONS={
   BASIC:[()=>mk('부캉이의 앞니','WEAPON','BASIC',20,{atk:5})],
   RARE:[()=>mk('푸바오의 대나무','WEAPON','RARE',80,{atk:7}),()=>mk('나무 도끼','WEAPON','RARE',90,{atk:5,crit:.10,critDmg:10}),
@@ -447,7 +446,7 @@ function resetCommon(){
   g.px=AX+160;g.py=AY+AH/2;g.clock=10;g.lastCombat=0;g.regenAcc=0;g.invuln=0;g.attackCd=0;g.swingT=0;g.subCd=1;
   g.mouseDown=false;g.paused=false;g.userPaused=false;scene='game';
   g.passive=null;g.passives=[];g.choices=[];g.ally=null;g.pStun=0;g.qCd=0;g.demonOn=false;g.bombUsed=false;
-  g.cdE=0;g.cdR=0;g.dash=null;g.akFlash=0;g.deathFrom=null;g.alt=null;g.waves=null;g.eid=0;g.spec=false;g.gHits=[];g.gStun=0;g.guest=false;g.host=false;g.pmap=null;g.eps=[];g.marks=[];g.cut=null;g.shield=0;g.soul=0;g.storms=[];g.fx=[];g.later=[];g.pst=null;g.tf=null;g.warpReady=false;g.warpT=0;g.sunAmp=0;g.bowN=0;g.mc=0;
+  g.cdE=0;g.cdR=0;g.dash=null;g.akFlash=0;g.deathFrom=null;g.alt=null;g.waves=null;g.eid=0;g.spec=false;g.gHits=[];g.gStun=0;g.guest=false;g.host=false;g.pmap=null;g.eps=[];g.marks=[];g.cut=null;g.shield=0;g.soul=0;g.storms=[];g.fx=[];g.later=[];g.pst=null;g.tf=null;g.warpReady=false;g.warpT=0;g.bowN=0;g.mc=0;
   setArena();
 }
 function startTutorial(){
@@ -944,7 +943,6 @@ function hitEnemy(e,base,cx,cy){
 function doAttack(){
   const w=P.weapon;
   if(w&&w.skill==='ak'){shootAK();return;}
-  if(w&&NEWW[w.skill]&&NEWW[w.skill].ranged){shootWp(w);return;}
   g.attackCd=(w&&w.atkCd)||.45;g.swingT=.18;g.lastCombat=g.clock;
   if(w&&w.skill==='caduceus')cadBegin();
   const rg=(w&&w.reach)||RANGE,cx=Math.cos(g.aim),cy=Math.sin(g.aim);
@@ -1004,7 +1002,7 @@ function useWeaponR(){
   g.lastCombat=g.clock;
 }
 
-const WP_RN={dusk:'종말의 일격',sunfire:'초신성 폭발'};
+const WP_RN={dusk:'종말의 일격'};
 const takenMul=e=>(e.mark?1.15:1)*(e.frozen>0?1.25:1)*(e.broken?1.25:1)*(e.venomT>0?1.25:1);
 const healP=n=>{n=Math.round(n);if(n>0&&P.hp<maxHp()){const h=Math.min(n,maxHp()-P.hp);P.hp+=h;ftext(g.px,g.py-58,'+'+h,'#78ff9a',14);}if(g.ally&&n>0)g.ally.hp=Math.min(g.ally.maxHp,g.ally.hp+Math.round(g.ally.maxHp*.1));};
 const addFx=o=>{(g.fx=g.fx||[]).push(o);};
@@ -1013,30 +1011,19 @@ const nearestNQ=()=>{let b=null,bd=1e9;for(const e of tgtList()){const d=Math.hy
 function wpHit(e,dmg,tag,c,w){   // 무기별 패시브 (기본 공격이 적중할 때)
   const sk=w.skill;let fixed=false;
   if(sk==='dusk'){e.h3=(e.h3||0)+1;if(e.h3>=3){e.h3=0;if(!e.mark){e.mark=true;ftext(e.x,e.y-76,'처형자의 표식','#ff6060',15);}}}
-  else if(sk==='sunfire'){(e.sun=e.sun||[]).push(5);}
   return {dmg,tag,c,fixed};
 }
 function wpKill(e){
   const w=P.weapon,sk=w&&w.skill;
   if(sk==='dusk'&&g.dash&&g.dash.dusk&&g.cdR>0){g.cdR=0;ftext(g.px,g.py-84,'R 쿨타임 초기화!','#ffd070',16);}
 }
-function shootWp(w){   // 원거리 무기의 기본 공격
-  g.attackCd=w.atkCd||.45;g.lastCombat=g.clock;
-  const sk=w.skill,a=g.aim,ca=Math.cos(a),sa=Math.sin(a);
-  const col='#ff9040',sp=850;
-  g.projs.push({x:g.px+ca*30,y:g.py-6+sa*30,vx:ca*sp,vy:sa*sp,dmg:pAtk(),life:.9,r:8,c:col,bullet:true});
-}
 const WP_R={
   dusk(m,nc){g.dash={t:.3,vx:Math.cos(g.aim)*1500,vy:Math.sin(g.aim)*1500,hit:new Set(),dusk:true,mul:2*m};g.invuln=Math.max(g.invuln,.4);ftext(g.px,g.py-70,'종말의 일격!','#ff7050',22);},
-  sunfire(m){for(const e of g.enemies.slice())damage(e,Math.round(pAtk()*8*m),'초신성!','#ff8030',true);g.sunAmp=5;addFx({k:'c',x:g.px,y:g.py,r:900,c:'#ff9a30',t:.6,t0:.6});ftext(g.px,g.py-70,'초신성 폭발! (화염 2배 5초)','#ffb050',20);},
 };
 function wpUpdate(dt){
   // 지연 실행
   if(g.later&&g.later.length){for(const l of g.later)l.t-=dt;const due=g.later.filter(l=>l.t<=0);g.later=g.later.filter(l=>l.t>0);due.forEach(l=>l.f());}
-  if(g.sunAmp>0)g.sunAmp-=dt;
   for(const e of g.enemies.slice()){
-    if(e.sun&&e.sun.length){e.sun=e.sun.map(t=>t-dt).filter(t=>t>0);e.sunAcc=(e.sunAcc||0)+dt;
-      if(e.sunAcc>=.5){e.sunAcc-=.5;if(e.sun.length)damage(e,Math.max(1,Math.round(e.maxHp*.04*e.sun.length*.5*(g.sunAmp>0?2:1))),null,'#ff8030');}}
     if(e.air>0)e.air-=dt;
   }
   if(g.fx){for(const f of g.fx)f.t-=dt;g.fx=g.fx.filter(f=>f.t>0);}
@@ -1439,7 +1426,7 @@ function drawPlayerSprite(){
     if(g.akFlash>0)circ(gx+ca*42,gy+sa*42,9,'rgba(255,220,100,.9)');
   }else if(NEWW[sk]&&(NEWW[sk].ranged||!(g.swingT>0))){
     const ca=Math.cos(g.aim),sa=Math.sin(g.aim),gx=g.px+ca*14,gy=g.py-6+sa*14,L=NEWW[sk].reach?Math.min(60,NEWW[sk].reach*.55):34;
-    const col={dusk:'#ff8a50',sunfire:'#ffa040'}[sk];
+    const col={dusk:'#ff8a50'}[sk];
     ln(gx,gy,gx+ca*L,gy+sa*L,6,'#555');ln(gx+ca*L*.6,gy+sa*L*.6,gx+ca*L,gy+sa*L,6,col);circ(gx+ca*L,gy+sa*L,5,col);
     if(g.shield>0){ctx.strokeStyle='rgba(120,200,255,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(g.px,g.py,44,0,Math.PI*2);ctx.stroke();}
   }else if(sk==='mace'){
@@ -2040,6 +2027,9 @@ const TITLES=[
   {id:'towerlord',name:'마탑의 주인',desc:'마탑 30층을 클리어한다.',grad:['#8a4bff','#ff4bd2'],bg:'#100a22',got:()=>towerNext>30},
   {id:'tycoon',name:'대부호',desc:'코인 100000개 이상을 보유한다.',grad:['#fff2a0','#ffb300'],bg:'#201808',got:()=>P.coins>=100000},
   {id:'devtitle',name:'%[$개발자*]&',desc:'이게임의 창시자.',grad:['#3dff7a','#12b846'],bg:'#000000',got:()=>!!P.devCode},
+  {id:'minkun',name:'민건이형',desc:'민건이형이야~',grad:['#ff9ad5','#9ad5ff'],bg:'#1a1424',got:()=>!!P.minCode},
+  {id:'subway',name:'지하철임산부자리스틸러',desc:'지하철 임산부석을 노리는 자.',grad:['#ff9ad2','#ff5a8c'],bg:'#200c18',got:()=>!!(P.cf&&P.cf.subway)},
+  {id:'brawl',name:'브롤쌉고수',desc:'브롤 고수.',grad:['#5ad2ff','#ffd75a'],bg:'#0e1424',got:()=>!!(P.cf&&P.cf.brawl)},
   {id:'maceowner',name:'철퇴의 주인',desc:'철퇴를 얻는다.',grad:['#c8c8d0','#8a8a96'],bg:'#16161c',got:()=>owns('철퇴')}
 ];
 const gradCss=g=>g.join(',');
@@ -2367,6 +2357,7 @@ function bakApply(o){
   if(o.last){lsSet(SAVE_LAST,o.last);const ni=$('nick');if(ni&&scene==='title')ni.value=o.last;}
   return n;
 }
+const CODE_TITLES={'송언이정크':['subway','지하철임산부자리스틸러'],'사랑남우성':['brawl','브롤쌉고수']};
 function codeOpen(){$('codeModal').style.display='block';$('codeMsg').textContent='';$('codeIn').value='';if(g&&g.mode)g.paused=true;setTimeout(()=>{try{$('codeIn').focus();}catch(e){}},50);}
 function codeClose(){$('codeModal').style.display='none';if(g)g.paused=false;}
 function codeSubmit(){
@@ -2376,6 +2367,18 @@ function codeSubmit(){
     const have=new Set(allEquip().map(i=>i.name));let n=0;
     for(const gr of Object.keys(WEAPONS))for(const f of WEAPONS[gr]){const it=f();if(!have.has(it.name)){P.bag.push(it);have.add(it.name);n++;}}
     m.style.color='#8f8';m.textContent=n?('개발자 능력 활성화! 모든 무기 '+n+'종이 인벤토리에 추가되었습니다. (I키 → 장착)'):'이미 모든 무기를 가지고 있습니다.';
+    try{saveGame();}catch(e){}
+  }else if(c==='민건이형'||c==='민건이형이야'){
+    if(!P||!P.bag){m.style.color='#f88';m.textContent='먼저 게임을 시작(START)한 뒤 입력하세요.';return;}
+    if(P.minCode){m.style.color='#ff8';m.textContent='이미 칭호를 받았습니다. (민건이형)';return;}
+    P.minCode=true;checkTitles();m.style.color='#8f8';m.textContent='칭호 획득! 민건이형 (칭호 탭에서 장착하세요)';
+    try{saveGame();}catch(e){}
+  }else if(CODE_TITLES[c]){
+    const [id,nm]=CODE_TITLES[c];
+    if(!P||!P.bag){m.style.color='#f88';m.textContent='먼저 게임을 시작(START)한 뒤 입력하세요.';return;}
+    P.cf=P.cf||{};
+    if(P.cf[id]){m.style.color='#ff8';m.textContent='이미 칭호를 받았습니다. ('+nm+')';return;}
+    P.cf[id]=true;checkTitles();m.style.color='#8f8';m.textContent='칭호 획득! '+nm+' (칭호 탭에서 장착하세요)';
     try{saveGame();}catch(e){}
   }else if(c==='메인개발자52'){
     if(!P||!P.bag){m.style.color='#f88';m.textContent='먼저 게임을 시작(START)한 뒤 입력하세요.';return;}
@@ -2412,7 +2415,8 @@ function saveGame(){
 function readSave(name){const s=lsGet(SAVE_PREFIX+name);if(!s)return null;try{const d=JSON.parse(s);return d&&d.P?d:null;}catch(e){return null;}}
 function loadGame(name){
   const d=readSave(name);if(!d)return false;
-  P=Object.assign(newPlayer(name),d.P);P.name=name;if(P.potions&&P.potions[1]>LUCK_MAX)P.potions[1]=LUCK_MAX;P.hp=clamp(P.hp||1,1,maxHp());
+  P=Object.assign(newPlayer(name),d.P);P.name=name;if(P.potions&&P.potions[1]>LUCK_MAX)P.potions[1]=LUCK_MAX;
+  {const sun=i=>i&&i.skill==='sunfire';if(P.bag)P.bag=P.bag.filter(i=>!sun(i));if(sun(P.weapon))P.weapon=WEAPONS.BASIC[0]();}P.hp=clamp(P.hp||1,1,maxHp());
   stage=d.stage||1;maxCleared=d.maxCleared||0;mineNext=d.mineNext||1;towerNext=d.towerNext||1;world2Open=!!d.world2Open;w2Next=d.w2Next||1;if(!world2Open&&maxCleared>=30)stage=30;raidAt=[0,0,0,0,0];if(Array.isArray(d.raidAt))d.raidAt.slice(0,5).forEach((v,i)=>raidAt[i]=(+v||0)?(d.raidV===2?+v:1):0);   // 쿨타임 5분으로 변경하며 기존 쿨타임 1회 초기화 (클리어 기록은 유지)
   endingShown=!!d.endingShown;casinoBet=d.casinoBet||100;casinoMsg='';
   V.ilT=70;V.trained=!!d.trained;V.last=null;V.ilActive=false;V.banner=null;saveOk=true;
