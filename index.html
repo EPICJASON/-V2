@@ -2234,6 +2234,9 @@ function renderInv(box,say,after){
 
 // ---- 인벤토리 모달 (게임 중)
 function renderModal(){const b=$('invBody'),v=b.scrollTop;renderInv(b,s=>{$('invStatus').textContent=s;},renderModal);b.scrollTop=v;}
+const coMode=()=>scene==='game'&&g.alt==='inf'&&!!g.inf&&!!g.inf.co;
+let coUiOff=null;
+function coUiSync(){const off=coMode();if(off===coUiOff)return;coUiOff=off;for(const id of ['mI','mP']){const b=$(id);if(b)b.style.display=off?'none':'';}if(off){g.userPaused=false;if($('invModal').style.display==='block')closeInventory();}}
 function openInventory(){
   if(scene!=='game'||g.mode==='CLEAR'||g.mode==='DEAD'||g.paused)return;
   g.paused=true;if(g.mode==='TUTORIAL')g.openedInv=true;
@@ -2608,14 +2611,14 @@ addEventListener('keydown',e=>{
     return;
   }
   g.keys[e.code]=true;
-  if(e.code==='KeyI')openInventory();
+  if(e.code==='KeyI'){if(!coMode())openInventory();}
   else if(e.code==='Digit1')usePotionKey(0);else if(e.code==='Digit2')usePotionKey(1);else if(e.code==='Digit3')usePotionKey(2);
   else if(e.code==='KeyQ')useQ();
   else if(e.code==='KeyR'){if(hasRSkill())useWeaponR();else useR();}   // R: 무기 스킬 우선, 없으면 악마의 속삭임
   else if(e.code==='KeyT'){if(g.mode==='VILLAGE')openTeleport();}
   else if(e.code==='KeyF')useR();                                       // F: 악마의 속삭임 (R 스킬 무기 장착 중에도 사용)
   else if(e.code==='KeyE'){if(g.mode==='VILLAGE'&&V.near)enterBuilding(V.near);else if(wSkill()==='undead')summonNormal();else useWeaponE();}   // 마을: 건물 입장
-  else if(e.code==='KeyP'){if(g.mode==='STAGE'||g.mode==='TUTORIAL'||g.mode==='VILLAGE')g.userPaused=!g.userPaused;}
+  else if(e.code==='KeyP'){if(!coMode()&&(g.mode==='STAGE'||g.mode==='TUTORIAL'||g.mode==='VILLAGE'))g.userPaused=!g.userPaused;}
   else if(e.code==='Enter'){
     if(g.mode==='CLEAR')leaveClear();else if(g.mode==='DEAD')leaveDead();else if(g.mode==='TUTORIAL'&&g.tStep>=4)endTutorial();else if(g.mode==='VILLAGE'&&V.near)enterBuilding(V.near);
   }
@@ -2762,7 +2765,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 let lastT=performance.now();
 function frame(now){
   const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
-  mobUpdate();
+  mobUpdate();coUiSync();
   netTick(dt);
   if(scene==='title')drawTitle();
   else if(scene==='story'){story.t+=dt;if(story.t>=STORY_TOTAL)endStory();else drawStory();}
