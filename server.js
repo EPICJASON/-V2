@@ -49,7 +49,8 @@ function sendJson(p, obj) {
 function drop(p) {
   if (!players.has(p.id)) return;
   players.delete(p.id);
-  { const qi = queue.indexOf(p); if (qi >= 0) queue.splice(qi, 1); if (p.partner) leaveRoom(p); }
+  for (const k of [2, 4]) { const qi = queues[k].indexOf(p); if (qi >= 0) queues[k].splice(qi, 1); }
+  if (p.room) leaveRoom(p);
   try { p.sock.destroy(); } catch (e) {}
 }
 
@@ -65,7 +66,7 @@ server.on('upgrade', (req, sock) => {
   sendJson(p, { t: 'welcome', id: p.id });
   sock.on('data', d => {
     p.buf = Buffer.concat([p.buf, d]);
-    if (p.buf.length > 16384) { drop(p); return; }
+    if (p.buf.length > 140000) { drop(p); return; }
     parse(p);
   });
   sock.on('close', () => drop(p));
@@ -79,9 +80,9 @@ function parse(p) {
     const fin = (b[0] & 0x80) !== 0, op = b[0] & 0x0f, masked = (b[1] & 0x80) !== 0;
     let len = b[1] & 0x7f, off = 2;
     if (len === 126) { if (b.length < 4) return; len = b.readUInt16BE(2); off = 4; }
-    else if (len === 127) { if (b.length < 10) return; const big = b.readBigUInt64BE(2); if (big > 8192n) { drop(p); return; } len = Number(big); off = 10; }
+    else if (len === 127) { if (b.length < 10) return; const big = b.readBigUInt64BE(2); if (big > 65536n) { drop(p); return; } len = Number(big); off = 10; }
     if (!masked) { drop(p); return; }          // 클라이언트 프레임은 반드시 마스크
-    if (len > 4096) { drop(p); return; }
+    if (len > 65536) { drop(p); return; }
     if (b.length < off + 4 + len) return;
     const mask = b.slice(off, off + 4);
     const data = Buffer.from(b.slice(off + 4, off + 4 + len));
@@ -115,29 +116,59 @@ function onMessage(p, text) {
     if (m.n) p.n = str(m.n, 12) || p.n;
   }
   else if (m.t === 'away') { p.v = false; }
-  // ---- 무한 모드 2인큐: 대기열에서 2명을 짝지어 주고, 방 안에서는 서로의 상태만 중계한다
-  else if (m.t === 'q2') { p.v = false; if (p.room) leaveRoom(p); if (!queue.includes(p)) queue.push(p); p.qn = str(m.n, 12) || p.n; p.qlv = num(m.lv, 1, 9999, 1) | 0; p.qw = num(m.w, 0, 20, 0) | 0; p.qdv = m.dv ? 1 : 0; matchUp(); }
-  else if (m.t === 'qcancel') { const i = queue.indexOf(p); if (i >= 0) queue.splice(i, 1); }
-  else if (m.t === 'rpos' && p.room && p.partner) {
-    sendJson(p.partner, { t: 'ppos', x: num(m.x, 0, WORLD_W, 0), y: num(m.y, 0, WORLD_H, 0), f: m.f ? 1 : 0, hp: num(m.hp, 0, 1e9, 0) | 0, tm: num(m.tm, 0, 1e7, 0), dead: m.dead ? 1 : 0 });
+  // ---- 무한 모드 2인큐 / 스쿼드(4인): 대기열에서 인원을 짝지어 주고, 방 안에서는 서로의 상태만 중계한다
+  else if (m.t === 'q2' || m.t === 'q4') {
+    p.v = false; if (p.room) leaveRoom(p);
+    for (const k of [2, 4]) { const i = queues[k].indexOf(p); if (i >= 0) queues[k].splice(i, 1); }
+    const sz = m.t === 'q4' ? 4 : 2; queues[sz].push(p);
+    p.qn = str(m.n, 12) || p.n; p.qlv = num(m.lv, 1, 9999, 1) | 0; p.qw = num(m.w, 0, 20, 0) | 0; p.qdv = m.dv ? 1 : 0;
+    matchUp();
   }
-  else if (m.t === 'rel' && p.room && p.partner && m.d && typeof m.d === 'object') { sendJson(p.partner, { t: 'rel', d: m.d }); }   // 2인큐: 같은 전투를 공유하기 위한 단순 중계
-  else if (m.t === 'rend' && p.room) { p.ended = true; if (p.partner) { sendJson(p.partner, { t: 'pend', tm: num(m.tm, 0, 1e7, 0) }); if (p.partner.ended) leaveRoom(p, true); } }
+  else if (m.t === 'qcancel') { for (const k of [2, 4]) { const i = queues[k].indexOf(p); if (i >= 0) queues[k].splice(i, 1); } }
+  else if (m.t === 'rpos' && p.room) {
+    const out = { t: 'ppos', i: p.idx, x: num(m.x, 0, 6000, 0), y: num(m.y, 0, 4000, 0), f: m.f ? 1 : 0, hp: num(m.hp, 0, 1e9, 0) | 0, tm: num(m.tm, 0, 1e7, 0), dead: m.dead ? 1 : 0,
+      a: num(m.a, 0, 3, 0) | 0, ak: num(m.ak, -7, 7, 0), wk: str(m.wk, 12), wr: num(m.wr, 0, 400, 0) | 0, al: cleanAl(m.al) };
+    for (const o of p.room.members) if (o && o !== p) sendJson(o, out);
+  }
+  else if (m.t === 'rel' && p.room && m.d && typeof m.d === 'object') {   // 같은 전투를 공유하기 위한 단순 중계 (to: 특정 인원 번호, 없으면 나머지 전원)
+    const out = { t: 'rel', d: m.d, from: p.idx };
+    if (typeof m.to === 'number') { const o = p.room.members[m.to | 0]; if (o && o !== p) sendJson(o, out); }
+    else for (const o of p.room.members) if (o && o !== p) sendJson(o, out);
+  }
+  else if (m.t === 'rend' && p.room) {
+    p.ended = true;
+    for (const o of p.room.members) if (o && o !== p) sendJson(o, { t: 'pend', i: p.idx, tm: num(m.tm, 0, 1e7, 0) });
+    if (p.room.members.every(o => !o || o.ended)) leaveRoom(p, true);
+  }
+}
+// 아군(소환물) 목록 정리: 최대 8개, 각 항목은 짧은 원시값 배열
+function cleanAl(a) {
+  if (!Array.isArray(a)) return [];
+  return a.slice(0, 8).map(x => Array.isArray(x) ? x.slice(0, 12).map(v => typeof v === 'number' ? (isFinite(v) ? Math.round(v * 100) / 100 : 0) : str(v, 24)) : []).filter(x => x.length);
 }
 
-const queue = [];
+const queues = { 2: [], 4: [] };
 function matchUp() {
-  while (queue.length >= 2) {
-    const a = queue.shift(), b = queue.shift();
-    if (!players.has(a.id) || !players.has(b.id)) { if (players.has(a.id)) queue.unshift(a); if (players.has(b.id)) queue.unshift(b); continue; }
-    a.room = b.room = 'r' + (nextId++); a.partner = b; b.partner = a;
-    sendJson(a, { t: 'match', role: 'host', n: b.qn, lv: b.qlv, w: b.qw, dv: b.qdv });
-    sendJson(b, { t: 'match', role: 'guest', n: a.qn, lv: a.qlv, w: a.qw, dv: a.qdv });
+  for (const sz of [2, 4]) {
+    const q = queues[sz];
+    for (let i = q.length - 1; i >= 0; i--) if (!players.has(q[i].id)) q.splice(i, 1);
+    while (q.length >= sz) {
+      const ms = q.splice(0, sz), room = { id: 'r' + (nextId++), members: ms, size: sz };
+      ms.forEach((p, i) => { p.room = room; p.idx = i; p.ended = false; });
+      ms.forEach((p, i) => {
+        const mates = ms.filter(o => o !== p).map(o => ({ i: o.idx, n: o.qn, lv: o.qlv, w: o.qw, dv: o.qdv }));
+        sendJson(p, { t: 'match', role: i === 0 ? 'host' : 'guest', idx: i, size: sz, mates, n: mates[0].n, lv: mates[0].lv, w: mates[0].w, dv: mates[0].dv });
+      });
+    }
   }
 }
 function leaveRoom(p, quiet) {
-  const o = p.partner; p.room = null; p.partner = null; p.ended = false;
-  if (o) { if (!quiet) sendJson(o, { t: 'pleft' }); o.partner = null; o.room = null; o.ended = false; }
+  const room = p.room; if (!room) return;
+  p.room = null; p.ended = false;
+  room.members = room.members.map(o => o === p ? null : o);   // 번호(idx)는 유지
+  if (!quiet) for (const o of room.members) if (o) sendJson(o, { t: 'pleft', i: p.idx });
+  if (quiet) { for (const o of room.members) if (o) { o.room = null; o.ended = false; } room.members = []; }
+  else if (room.members.every(o => !o)) room.members = [];
 }
 
 setInterval(() => {
